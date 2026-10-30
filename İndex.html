@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ox Blast – 1000 Səviyyə</title>
+<style>
+:root{color-scheme:dark;--bg:#000;--card:#070707;--ink:#fff;--mut:#9a9170;--acc:#e8b923;--bad:#ff4d5e;--cell:#111;--wall:#3b3526;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{max-width:560px;margin:0 auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:8px}
+button{font:inherit;border:0;border-radius:14px;padding:10px 16px;background:var(--card);color:var(--ink);font-weight:600;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.12)}
+button.p{background:var(--acc);color:#000}
+button:disabled{opacity:.4}
+.title{text-align:center;line-height:1.2}.title b{font-size:20px}.title small{display:block;color:var(--mut)}
+#lives{font-size:20px;letter-spacing:2px;min-width:70px;text-align:right}
+#board{position:relative;width:100%;aspect-ratio:1;display:grid;gap:4px;padding:6px;background:var(--card);border-radius:20px;overflow:hidden;
+grid-template-columns:repeat(var(--n),1fr);grid-template-rows:repeat(var(--n),1fr)}
+.cell{position:relative;background:var(--cell);border-radius:10px;display:flex;align-items:center;justify-content:center}
+.wall{background:var(--wall)}
+.a{width:100%;height:100%;display:flex;align-items:center;justify-content:center;position:relative}
+.a svg{width:100%;height:100%;fill:currentColor;transition:transform .15s;filter:drop-shadow(0 0 2px currentColor)}
+.a i{position:absolute;right:6%;top:4%;font-size:11px;font-style:normal;font-weight:800;background:var(--ink);color:var(--bg);border-radius:8px;padding:0 5px}
+.bad{animation:sh .4s;color:var(--bad)!important}
+@keyframes sh{20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+.hint{animation:pl .7s 3}
+@keyframes pl{50%{transform:scale(1.25)}}
+.fly{position:absolute;transition:transform .45s cubic-bezier(.5,0,.9,.5),opacity .45s;pointer-events:none;display:flex;align-items:center;justify-content:center}
+.fly svg{width:100%;height:100%;fill:currentColor;filter:drop-shadow(0 0 3px currentColor)}
+#msg{text-align:center;color:var(--mut);min-height:20px;font-size:14px}
+.ov{position:fixed;inset:0;background:rgba(10,6,30,.6);display:none;align-items:center;justify-content:center;padding:16px;z-index:5}
+.ov.on{display:flex}
+.box{background:var(--card);border-radius:22px;padding:20px;width:100%;max-width:420px;text-align:center}
+.box h2{margin:0 0 8px}.box p{color:var(--mut);margin:0 0 16px}
+.row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+#lv{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:12px 0}
+#lv button{padding:10px 0;box-shadow:none;background:var(--cell)}
+#lv button.d{background:var(--acc);color:#000}
+#lv button.c{outline:3px solid var(--acc)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="bar">
+    <button id="menu">☰</button>
+    <div class="title"><b id="t">Səviyyə 1</b><small id="w"></small></div>
+    <div id="lives"></div>
+  </div>
+  <div id="board"></div>
+  <div id="msg"></div>
+  <div class="bar">
+    <button id="hint">💡 İpucu (3)</button>
+    <button id="restart">↻ Yenidən</button>
+  </div>
+</div>
+
+<div class="ov" id="ovEnd"><div class="box"><h2 id="eh"></h2><p id="ep"></p><div class="row" id="eb"></div></div></div>
+<div class="ov" id="ovMenu"><div class="box"><h2>Səviyyələr</h2>
+  <div class="row" style="align-items:center"><button id="pp">◀</button><b id="pg"></b><button id="pn">▶</button></div>
+  <div id="lv"></div><button id="close">Bağla</button></div></div>
+
+<script>
+const D=[[-1,0],[0,1],[1,0],[0,-1]],ROT=[0,90,180,270];
+const COLS=['#ffffff','#ffd76a','#e8b923','#f6ecd2'];
+const WORLDS=['Yaşıl Çöl','Buz Dünyası','Neon Şəhər','Vulkan','Kosmos','Kristal Mağara','Tufan','Qızıl Zirvə','Qaranlıq Meşə','Son Sınaq'];
+const $=id=>document.getElementById(id);
+const ARR='<svg viewBox="0 0 24 24"><path d="M12 .5L17.5 8H13V23.5H11V8H6.5Z"/></svg>';
+let G,unlocked=1,page=0;
+try{unlocked=Math.min(1000,+JSON.parse(localStorage.getItem('oxblast')||'{}').u||1)}catch(e){}
+function save(){try{localStorage.setItem('oxblast',JSON.stringify({u:unlocked}))}catch(e){}}
+function rng(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function shuf(a,R){for(let i=a.length-1;i>0;i--){const j=Math.floor(R()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function ray(g,r,c,d){const n=g.length;r+=D[d][0];c+=D[d][1];
+  while(r>=0&&c>=0&&r<n&&c<n){if(g[r][c])return{r,c};r+=D[d][0];c+=D[d][1]}return null}
+function gen(L){
+  const R=rng(L*7919+13),n=L<=3?4:Math.min(12,5+Math.floor(L/70)),rl=(n,r,c,d)=>d===0?r:d===2?n-1-r:d===1?n-1-c:c;
+  const g=Array.from({length:n},()=>Array(n).fill(null)),all=[];
+  for(let r=0;r<n;r++)for(let c=0;c<n;c++)all.push([r,c]);
+  shuf(all,R);
+  let walls=L>=30?Math.floor(n*n*Math.min(.16,(L-30)/500*.16)):0;
+  while(walls--){const [r,c]=all.pop();g[r][c]={w:1}}
+  const target=Math.max(4,Math.round(all.length*Math.min(.97,.62+L/300*.35))),p2=L>=100?Math.min(.4,(L-100)/500*.4):0,p3=L>=350?Math.min(.2,(L-350)/650*.2):0;
+  let cnt=0;
+  for(const [r,c] of all){
+    if(cnt>=target)break;
+    const ds=[0,1,2,3].filter(d=>!ray(g,r,c,d));
+    if(!ds.length)continue;
+    ds.sort((a,b)=>rl(n,r,c,b)-rl(n,r,c,a)+(R()-.5)*2);
+    const q=R();
+    g[r][c]={d:ds[0],hp:q<p3?3:q<p2+p3?2:1,col:COLS[Math.floor(R()*COLS.length)]};cnt++;
+  }
+  const lv=L<20?3:L<400?2:1;return{g,n,L,left:cnt,lives:lv,max:lv,hints:L<100?3:L<400?2:1};
+}
+function start(L){G=gen(L);$('t').textContent='Səviyyə '+L;
+  $('w').textContent=WORLDS[Math.floor((L-1)/100)]+(G.g.flat().some(x=>x&&x.w)?' · divarlar':'')+(G.g.flat().some(x=>x&&x.hp>1)?' · 2 toxunuş':'');
+  $('msg').textContent=L<=3?'Oxa toxun – qarşısı boşdursa uçub gedir. Hamısını təmizlə!':'';
+  ['ovEnd','ovMenu'].forEach(i=>$(i).classList.remove('on'));render();hud()}
+function hud(){$('lives').textContent='❤️'.repeat(G.lives)+'🖤'.repeat(G.max-G.lives);
+  $('hint').textContent='💡 İpucu ('+G.hints+')';$('hint').disabled=!G.hints}
+function render(){
+  const b=$('board');b.style.setProperty('--n',G.n);b.innerHTML='';
+  G.g.forEach((row,r)=>row.forEach((x,c)=>{
+    const e=document.createElement('div');e.className='cell'+(x&&x.w?' wall':'');e.id='c'+r+'_'+c;
+    if(x&&!x.w){e.innerHTML='<div class="a" data-r="'+r+'" data-c="'+c+'" style="color:'+x.col+'"><span style="display:contents">'+ARR+'</span>'+(x.hp>1?'<i>'+x.hp+'</i>':'')+'</div>';
+      e.querySelector('svg').style.transform='rotate('+ROT[x.d]+'deg)'}
+    b.appendChild(e)}));
+}
+$('board').addEventListener('click',e=>{
+  const a=e.target.closest('.a');if(!a||!G||G.lives<=0||G.left<=0)return;
+  const r=+a.dataset.r,c=+a.dataset.c,x=G.g[r][c],bl=ray(G.g,r,c,x.d);
+  if(bl){
+    a.classList.add('bad');const be=$('c'+bl.r+'_'+bl.c).firstElementChild;if(be)be.classList.add('bad');
+    setTimeout(()=>{a.classList.remove('bad');be&&be.classList.remove('bad')},450);
+    G.lives--;hud();
+    if(G.lives<=0)setTimeout(()=>end(false),500);return}
+  if(x.hp>1){x.hp--;render();return}
+  G.g[r][c]=null;G.left--;
+  const f=document.createElement('div'),n=G.n;f.className='fly';f.style.color=x.col;
+  f.style.cssText+='left:calc(6px + '+c+' * (100% - 12px + 4px) / '+n+');top:calc(6px + '+r+' * (100% - 12px + 4px) / '+n+');width:calc((100% - 12px - '+(n-1)*4+'px) / '+n+');height:calc((100% - 12px - '+(n-1)*4+'px) / '+n+')';
+  f.innerHTML=ARR;f.querySelector('svg').style.transform='rotate('+ROT[x.d]+'deg)';
+  $('board').appendChild(f);render();$('board').appendChild(f);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    f.style.transform='translate('+D[x.d][1]*(n+1)*100+'%,'+D[x.d][0]*(n+1)*100+'%)';f.style.opacity='.2'}));
+  setTimeout(()=>f.remove(),500);
+  if(G.left<=0)setTimeout(()=>end(true),550);
+});
+function end(win){
+  const L=G.L;$('ovEnd').classList.add('on');const b=$('eb');b.innerHTML='';
+  const btn=(t,f,p)=>{const k=document.createElement('button');k.textContent=t;if(p)k.className='p';k.onclick=f;b.appendChild(k)};
+  if(win){
+    if(L>=unlocked&&L<1000){unlocked=L+1;save()}
+    $('eh').textContent=L===1000?'🏆 Çempionsan!':'🎉 Əla!';
+    $('ep').textContent=L===1000?'1000 səviyyənin hamısını keçdin!':'Səviyyə '+L+' keçildi. Növbəti daha çətindir.';
+    if(L<1000)btn('Növbəti ▶',()=>start(L+1),1);btn('Səviyyələr',openMenu)
+  }else{
+    $('eh').textContent='💥 Uduzdun';$('ep').textContent='Canların bitdi. Yenidən cəhd et!';
+    btn('Yenidən ↻',()=>start(L),1);btn('Səviyyələr',openMenu)}
+}
+$('restart').onclick=()=>start(G.L);
+$('hint').onclick=()=>{
+  if(!G.hints||G.left<=0)return;
+  const free=[];G.g.forEach((row,r)=>row.forEach((x,c)=>{if(x&&!x.w&&!ray(G.g,r,c,x.d))free.push([r,c])}));
+  if(!free.length)return;const [r,c]=free[Math.floor(Math.random()*free.length)];
+  G.hints--;hud();const a=$('c'+r+'_'+c).firstElementChild;a.classList.add('hint');setTimeout(()=>a.classList.remove('hint'),2200)};
+function openMenu(){page=Math.floor((Math.min(G?G.L:unlocked,1000)-1)/50);drawMenu();$('ovEnd').classList.remove('on');$('ovMenu').classList.add('on')}
+function drawMenu(){
+  $('pg').textContent=(page*50+1)+' – '+(page*50+50);const h=$('lv');h.innerHTML='';
+  for(let i=1;i<=50;i++){const L=page*50+i,k=document.createElement('button');k.textContent=L;
+    if(L<unlocked)k.className='d';else if(L===unlocked)k.className='c';else k.disabled=true;
+    k.onclick=()=>start(L);h.appendChild(k)}
+  $('pp').disabled=page===0;$('pn').disabled=page===19}
+$('menu').onclick=openMenu;$('close').onclick=()=>$('ovMenu').classList.remove('on');
+$('pp').onclick=()=>{page--;drawMenu()};$('pn').onclick=()=>{page++;drawMenu()};
+start(unlocked);
+</script>
+</body>
+</html>
